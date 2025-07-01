@@ -11,9 +11,39 @@ import {
   Type,
 } from '@google/genai';
 import { GeminiClient } from '../core/client.js';
-import { EditToolParams } from '../tools/edit.js';
 import { LruCache } from './LruCache.js';
 import { DEFAULT_GEMINI_FLASH_MODEL } from '../config/models.js';
+
+/**
+ * Parameters for edit operations
+ */
+export interface EditToolParams {
+  /**
+   * The absolute path to the file to modify
+   */
+  file_path: string;
+
+  /**
+   * The text to replace
+   */
+  old_string: string;
+
+  /**
+   * The text to replace it with
+   */
+  new_string: string;
+
+  /**
+   * Number of replacements expected. Defaults to 1 if not specified.
+   * Use when you want to replace multiple occurrences.
+   */
+  expected_replacements?: number;
+
+  /**
+   * Whether the edit was modified manually by the user.
+   */
+  modified_by_user?: boolean;
+}
 
 const EditModel = DEFAULT_GEMINI_FLASH_MODEL;
 const EditConfig: GenerateContentConfig = {

@@ -8,7 +8,7 @@ import {
   AuthType,
   CompletedToolCall,
   ContentGeneratorConfig,
-  EditTool,
+  FileTool,
   ErroredToolCall,
   GeminiClient,
   ToolConfirmationOutcome,
@@ -401,7 +401,7 @@ describe('loggers', () => {
           resultDisplay: undefined,
           error: undefined,
         },
-        tool: new EditTool(mockConfig),
+        tool: new FileTool(mockConfig.getTargetDir(), mockConfig),
         durationMs: 100,
         outcome: ToolConfirmationOutcome.ProceedOnce,
       };
@@ -524,7 +524,7 @@ describe('loggers', () => {
           error: undefined,
         },
         outcome: ToolConfirmationOutcome.ModifyWithEditor,
-        tool: new EditTool(mockConfig),
+        tool: new FileTool(mockConfig.getTargetDir(), mockConfig),
         durationMs: 100,
       };
       const event = new ToolCallEvent(call);
@@ -585,7 +585,7 @@ describe('loggers', () => {
           resultDisplay: undefined,
           error: undefined,
         },
-        tool: new EditTool(mockConfig),
+        tool: new FileTool(mockConfig.getTargetDir(), mockConfig),
         durationMs: 100,
       };
       const event = new ToolCallEvent(call);
