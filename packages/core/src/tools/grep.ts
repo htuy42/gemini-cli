@@ -15,6 +15,8 @@ import { SchemaValidator } from '../utils/schemaValidator.js';
 import { makeRelative, shortenPath } from '../utils/paths.js';
 import { getErrorMessage, isNodeError } from '../utils/errors.js';
 import { isGitRepository } from '../utils/gitUtils.js';
+import { OutputSummarizer, DEFAULT_MAX_CHARACTERS } from './utils/output-summarizer.js';
+import { type Config } from '../config/config.js';
 
 // --- Interfaces ---
 
@@ -36,6 +38,11 @@ export interface GrepToolParams {
    * File pattern to include in the search (e.g. "*.js", "*.{ts,tsx}")
    */
   include?: string;
+
+  /**
+   * Maximum allowed characters for output before summarization is triggered
+   */
+  maxAllowedCharacters?: number;
 }
 
 /**
@@ -54,12 +61,14 @@ interface GrepMatch {
  */
 export class GrepTool extends BaseTool<GrepToolParams, ToolResult> {
   static readonly Name = 'search_file_content'; // Keep static name
+  private outputSummarizer: OutputSummarizer;
 
   /**
    * Creates a new instance of the GrepLogic
    * @param rootDirectory Root directory to ground this tool in. All operations will be restricted to this directory.
+   * @param config Configuration instance for accessing services
    */
-  constructor(private rootDirectory: string) {
+  constructor(private rootDirectory: string, private config: Config) {
     super(
       GrepTool.Name,
       'SearchText',
@@ -81,6 +90,11 @@ export class GrepTool extends BaseTool<GrepToolParams, ToolResult> {
               "Optional: A glob pattern to filter which files are searched (e.g., '*.js', '*.{ts,tsx}', 'src/**'). If omitted, searches all files (respecting potential global ignores).",
             type: 'string',
           },
+          maxAllowedCharacters: {
+            description:
+              `Optional: Maximum allowed characters for output before summarization is triggered. Default is ${DEFAULT_MAX_CHARACTERS}.`,
+            type: 'number',
+          },
         },
         required: ['pattern'],
         type: 'object',
@@ -88,6 +102,7 @@ export class GrepTool extends BaseTool<GrepToolParams, ToolResult> {
     );
     // Ensure rootDirectory is absolute and normalized
     this.rootDirectory = path.resolve(rootDirectory);
+    this.outputSummarizer = new OutputSummarizer(config);
   }
 
   // --- Validation Methods ---
@@ -227,8 +242,32 @@ export class GrepTool extends BaseTool<GrepToolParams, ToolResult> {
         llmContent += '---\n';
       }
 
+      // Apply summarization if output is too large
+      const trimmedContent = llmContent.trim();
+      const maxAllowedCharacters = params.maxAllowedCharacters;
+      
+      if (maxAllowedCharacters !== undefined) {
+        const summarizationResult = await this.outputSummarizer.summarizeIfNeeded(
+          trimmedContent,
+          'Grep',
+          {
+            maxAllowedCharacters,
+            prompt: `Summarize these grep search results for pattern "${params.pattern}". Focus on the most relevant matches and highlight key findings.`,
+          }
+        );
+        
+        if (summarizationResult.isSummarized) {
+          const summaryNote = `[Output summarized: ${summarizationResult.originalLength} characters → ${summarizationResult.summarizedLength || 'N/A'} characters]`;
+          
+          return {
+            llmContent: `${summaryNote}\n\nFound ${matchCount} ${matchTerm} for pattern "${params.pattern}" in path "${searchDirDisplay}"${params.include ? ` (filter: "${params.include}")` : ''}.\n\n${summarizationResult.content}`,
+            returnDisplay: `Found ${matchCount} ${matchTerm} (summarized)`,
+          };
+        }
+      }
+
       return {
-        llmContent: llmContent.trim(),
+        llmContent: trimmedContent,
         returnDisplay: `Found ${matchCount} ${matchTerm}`,
       };
     } catch (error) {

@@ -19,11 +19,13 @@ import {
 import { SchemaValidator } from '../utils/schemaValidator.js';
 import { getErrorMessage } from '../utils/errors.js';
 import stripAnsi from 'strip-ansi';
+import { OutputSummarizer, DEFAULT_MAX_CHARACTERS } from './utils/output-summarizer.js';
 
 export interface ShellToolParams {
   command: string;
   description?: string;
   directory?: string;
+  maxAllowedCharacters?: number;
 }
 import { spawn } from 'child_process';
 
@@ -32,6 +34,7 @@ const OUTPUT_UPDATE_INTERVAL_MS = 1000;
 export class ShellTool extends BaseTool<ShellToolParams, ToolResult> {
   static Name: string = 'run_shell_command';
   private whitelist: Set<string> = new Set();
+  private outputSummarizer: OutputSummarizer;
 
   constructor(private readonly config: Config) {
     super(
@@ -67,12 +70,18 @@ Process Group PGID: Process group started or \`(none)\``,
             description:
               '(OPTIONAL) Directory to run the command in, if not the project root directory. Must be relative to the project root directory and must already exist.',
           },
+          maxAllowedCharacters: {
+            type: 'number',
+            description:
+              `(OPTIONAL) Maximum allowed characters for output before summarization is triggered. Default is ${DEFAULT_MAX_CHARACTERS}.`,
+          },
         },
         required: ['command'],
       },
       false, // output is not markdown
       true, // output can be updated
     );
+    this.outputSummarizer = new OutputSummarizer(config);
   }
 
   getDescription(params: ShellToolParams): string {
@@ -449,6 +458,38 @@ Process Group PGID: Process group started or \`(none)\``,
         }
         // If output is empty and command succeeded (code 0, no error/signal/abort),
         // returnDisplayMessage will remain empty, which is fine.
+      }
+    }
+
+    // Apply summarization if output is too large
+    const maxAllowedCharacters = params.maxAllowedCharacters;
+    if (maxAllowedCharacters !== undefined && output.length > 0) {
+      const summarizationResult = await this.outputSummarizer.summarizeIfNeeded(
+        output,
+        'Shell',
+        {
+          maxAllowedCharacters,
+          prompt: `Summarize the output from the shell command: ${params.command}`,
+        }
+      );
+      
+      if (summarizationResult.isSummarized) {
+        // Update both llmContent and returnDisplay with summarized version
+        const summaryNote = `[Output summarized: ${summarizationResult.originalLength} characters → ${summarizationResult.summarizedLength || 'N/A'} characters]`;
+        
+        llmContent = [
+          `Command: ${params.command}`,
+          `Directory: ${params.directory || '(root)'}`,
+          summaryNote,
+          `Summary: ${summarizationResult.content}`,
+          `Error: ${error ?? '(none)'}`,
+          `Exit Code: ${code ?? '(none)'}`,
+          `Signal: ${processSignal ?? '(none)'}`,
+          `Background PIDs: ${backgroundPIDs.length ? backgroundPIDs.join(', ') : '(none)'}`,
+          `Process Group PGID: ${shell.pid ?? '(none)'}`,
+        ].join('\n');
+        
+        returnDisplayMessage = `${summaryNote}\n\n${summarizationResult.content}`;
       }
     }
 

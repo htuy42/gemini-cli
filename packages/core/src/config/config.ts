@@ -493,7 +493,7 @@ export function createToolRegistry(config: Config): Promise<ToolRegistry> {
   // Always use unified file tool
   registerCoreTool(FileTool, targetDir, config);
   
-  registerCoreTool(GrepTool, targetDir);
+  registerCoreTool(GrepTool, targetDir, config);
   registerCoreTool(GlobTool, targetDir, config);
   registerCoreTool(WebFetchTool, config);
   registerCoreTool(ReadManyFilesTool, targetDir, config);
