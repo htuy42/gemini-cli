@@ -32,7 +32,7 @@ describe('Core System Prompt (prompts.ts)', () => {
     vi.stubEnv('SANDBOX', undefined);
     const prompt = getCoreSystemPrompt();
     expect(prompt).not.toContain('---\n\n'); // Separator should not be present
-    expect(prompt).toContain('You are an interactive CLI agent'); // Check for core content
+    expect(prompt).toContain('You are an expert coding assistant'); // Check for core content
     expect(prompt).toMatchSnapshot(); // Use snapshot for base prompt structure
   });
 
@@ -40,7 +40,7 @@ describe('Core System Prompt (prompts.ts)', () => {
     vi.stubEnv('SANDBOX', undefined);
     const prompt = getCoreSystemPrompt('');
     expect(prompt).not.toContain('---\n\n');
-    expect(prompt).toContain('You are an interactive CLI agent');
+    expect(prompt).toContain('You are an expert coding assistant');
     expect(prompt).toMatchSnapshot();
   });
 
@@ -48,7 +48,7 @@ describe('Core System Prompt (prompts.ts)', () => {
     vi.stubEnv('SANDBOX', undefined);
     const prompt = getCoreSystemPrompt('   \n  \t ');
     expect(prompt).not.toContain('---\n\n');
-    expect(prompt).toContain('You are an interactive CLI agent');
+    expect(prompt).toContain('You are an expert coding assistant');
     expect(prompt).toMatchSnapshot();
   });
 
@@ -59,34 +59,31 @@ describe('Core System Prompt (prompts.ts)', () => {
     const prompt = getCoreSystemPrompt(memory);
 
     expect(prompt.endsWith(expectedSuffix)).toBe(true);
-    expect(prompt).toContain('You are an interactive CLI agent'); // Ensure base prompt follows
+    expect(prompt).toContain('You are an expert coding assistant'); // Ensure base prompt follows
     expect(prompt).toMatchSnapshot(); // Snapshot the combined prompt
   });
 
   it('should include sandbox-specific instructions when SANDBOX env var is set', () => {
     vi.stubEnv('SANDBOX', 'true'); // Generic sandbox value
     const prompt = getCoreSystemPrompt();
-    expect(prompt).toContain('# Sandbox');
-    expect(prompt).not.toContain('# MacOS Seatbelt');
-    expect(prompt).not.toContain('# Outside of Sandbox');
+    expect(prompt).toContain('## Environment');
+    expect(prompt).toContain('Running in a sandboxed container');
     expect(prompt).toMatchSnapshot();
   });
 
   it('should include seatbelt-specific instructions when SANDBOX env var is "sandbox-exec"', () => {
     vi.stubEnv('SANDBOX', 'sandbox-exec');
     const prompt = getCoreSystemPrompt();
-    expect(prompt).toContain('# MacOS Seatbelt');
-    expect(prompt).not.toContain('# Sandbox');
-    expect(prompt).not.toContain('# Outside of Sandbox');
+    expect(prompt).toContain('## Environment');
+    expect(prompt).toContain('Running under macOS seatbelt');
     expect(prompt).toMatchSnapshot();
   });
 
   it('should include non-sandbox instructions when SANDBOX env var is not set', () => {
     vi.stubEnv('SANDBOX', undefined); // Ensure it's not set
     const prompt = getCoreSystemPrompt();
-    expect(prompt).toContain('# Outside of Sandbox');
-    expect(prompt).not.toContain('# Sandbox');
-    expect(prompt).not.toContain('# MacOS Seatbelt');
+    expect(prompt).toContain('## Environment');
+    expect(prompt).toContain('Running directly on the host system');
     expect(prompt).toMatchSnapshot();
   });
 
@@ -94,7 +91,7 @@ describe('Core System Prompt (prompts.ts)', () => {
     vi.stubEnv('SANDBOX', undefined);
     vi.mocked(isGitRepository).mockReturnValue(true);
     const prompt = getCoreSystemPrompt();
-    expect(prompt).toContain('# Git Repository');
+    expect(prompt).toContain('## Git Operations');
     expect(prompt).toMatchSnapshot();
   });
 
@@ -102,7 +99,7 @@ describe('Core System Prompt (prompts.ts)', () => {
     vi.stubEnv('SANDBOX', undefined);
     vi.mocked(isGitRepository).mockReturnValue(false);
     const prompt = getCoreSystemPrompt();
-    expect(prompt).not.toContain('# Git Repository');
+    expect(prompt).not.toContain('## Git Operations');
     expect(prompt).toMatchSnapshot();
   });
 });

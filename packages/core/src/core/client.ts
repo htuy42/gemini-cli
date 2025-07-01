@@ -14,7 +14,6 @@ import {
   Tool,
   GenerateContentResponse,
 } from '@google/genai';
-import { getFolderStructure } from '../utils/getFolderStructure.js';
 import {
   Turn,
   ServerGeminiStreamEvent,
@@ -111,15 +110,11 @@ export class GeminiClient {
       day: 'numeric',
     });
     const platform = process.platform;
-    const folderStructure = await getFolderStructure(cwd, {
-      fileService: this.config.getFileService(),
-    });
     const context = `
   This is the Gemini CLI. We are setting up the context for our chat.
   Today's date is ${today}.
   My operating system is: ${platform}
   I'm currently working in the directory: ${cwd}
-  ${folderStructure}
           `.trim();
 
     const initialParts: Part[] = [{ text: context }];
