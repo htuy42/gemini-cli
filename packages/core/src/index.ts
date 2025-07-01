@@ -53,6 +53,7 @@ export * from './tools/read-many-files.js';
 export * from './tools/mcp-client.js';
 export * from './tools/mcp-tool.js';
 export * from './tools/file-tool/file-tool.js';
+export * from './tools/task-tool.js';
 
 // Export telemetry functions
 export * from './telemetry/index.js';

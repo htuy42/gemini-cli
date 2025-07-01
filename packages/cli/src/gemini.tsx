@@ -27,9 +27,8 @@ import { cleanupCheckpoints } from './utils/cleanup.js';
 import {
   ApprovalMode,
   Config,
-  EditTool,
   ShellTool,
-  WriteFileTool,
+  FileTool,
   sessionId,
   logUserPrompt,
   AuthType,
@@ -245,8 +244,7 @@ async function loadNonInteractiveConfig(
     const existingExcludeTools = settings.merged.excludeTools || [];
     const interactiveTools = [
       ShellTool.Name,
-      EditTool.Name,
-      WriteFileTool.Name,
+      FileTool.Name,
     ];
 
     const newExcludeTools = [
