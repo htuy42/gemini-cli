@@ -14,6 +14,7 @@ import { ShellTool } from '../tools/shell.js';
 import process from 'node:process';
 import { isGitRepository } from '../utils/gitUtils.js';
 import { MemoryTool, GEMINI_CONFIG_DIR } from '../tools/memoryTool.js';
+import { TaskTool } from '../tools/task-tool.js';
 
 export function getCoreSystemPrompt(userMemory?: string): string {
   // if GEMINI_SYSTEM_MD is set (and not 0|false), override system prompt from file
@@ -42,7 +43,7 @@ When tackling any task, follow this thinking pattern:
 
 1. **Think First**: Before taking any action, analyze the request thoroughly. Consider the entire context, dependencies, and potential impacts.
 
-2. **Plan**: Create a mental model of the solution. For complex tasks, break them down into clear, manageable steps.
+2. **Plan**: Create a mental model of the solution. For complex tasks, break them down into clear, manageable steps. Consider using the ${TaskTool.Name} tool to organize and track your progress through multi-step operations.
 
 3. **Act**: Execute your plan using available tools efficiently. Prefer parallel operations when possible.
 
