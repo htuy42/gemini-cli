@@ -26,6 +26,7 @@ import {
 } from '../tools/memoryTool.js';
 import { WebSearchTool } from '../tools/web-search.js';
 import { TaskTool } from '../tools/task-tool.js';
+import { TaskAgentTool } from '../tools/task-agent-tool.js';
 import { GeminiClient } from '../core/client.js';
 import { FileDiscoveryService } from '../services/fileDiscoveryService.js';
 import { GitService } from '../services/gitService.js';
@@ -501,6 +502,7 @@ export function createToolRegistry(config: Config): Promise<ToolRegistry> {
   registerCoreTool(MemoryTool);
   registerCoreTool(WebSearchTool, config);
   registerCoreTool(TaskTool);
+  registerCoreTool(TaskAgentTool, config);
   return (async () => {
     await registry.discoverTools();
     return registry;
