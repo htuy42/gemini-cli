@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Content, Part, PartListUnion } from '@google/genai';
+import { Content, Part, PartListUnion, Tool } from '@google/genai';
+import process from 'node:process';
 import { Config } from '../config/config.js';
 import { GeminiChat } from './geminiChat.js';
 import { ContentGenerator } from './contentGenerator.js';
@@ -38,14 +39,63 @@ export class TaskAgentRunner {
     // Create agent-specific tool registry
     this.agentRegistry = await this.createAgentToolRegistry();
     
+    // Get tool declarations for the agent
+    const toolDeclarations = this.agentRegistry.getFunctionDeclarations();
+    const tools: Tool[] = [{ functionDeclarations: toolDeclarations }];
+    
+    // Check if thinking is supported for the model
+    const model = this.config.getModel();
+    const isThinkingSupported = model.startsWith('gemini-2.5');
+    
+    // Create generation config matching main agent settings
+    const generationConfig = {
+      temperature: 0,
+      topP: 1,
+      ...(isThinkingSupported ? {
+        thinkingConfig: {
+          includeThoughts: true,
+        },
+      } : {}),
+    };
+    
+    // Create environment context for the sub-agent
+    const cwd = this.config.getWorkingDir();
+    const today = new Date().toLocaleDateString(undefined, {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+    const platform = process.platform;
+    const envContext = `Task Agent Environment:
+Today's date is ${today}.
+Operating system: ${platform}
+Working directory: ${cwd}
+Parent agent has assigned you a specific task to complete.`;
+    
+    // Create history with environment context
+    const agentHistory = [
+      ...this.parentHistory,
+      {
+        role: 'user' as const,
+        parts: [{ text: envContext }],
+      },
+      {
+        role: 'model' as const,
+        parts: [{ text: 'Understood. I have the environment context and am ready to work on the assigned task.' }],
+      },
+    ];
+    
     // Create a new chat with forked history and custom system prompt
     const agentChat = new GeminiChat(
       this.config,
       this.contentGenerator,
       {
         systemInstruction: this.agentSystemPrompt,
+        tools,
+        ...generationConfig,
       },
-      [...this.parentHistory], // Copy the history
+      agentHistory,
     );
     
     // Set up timeout handling
