@@ -635,17 +635,53 @@ export const useGeminiStream = (
             // Mark this tool as submitted
             markToolsAsSubmitted([tool.request.callId]);
             
+            // Show agent spawning message
+            addItem(
+              {
+                type: MessageType.INFO,
+                text: `🤖 Spawning task agent for: "${agentRequest.task}"\n\nThe agent will work independently with access to tools...`,
+              },
+              Date.now(),
+            );
+            
             // Spawn and run the agent
             try {
               const currentHistory = await geminiClient.getHistory();
+              
+              // Show agent working indicator
+              addItem(
+                {
+                  type: MessageType.INFO,
+                  text: `⚡ Agent is working... (max ${agentRequest.maxTurns} turns, timeout: ${Math.round(agentRequest.timeoutMs / 1000)}s)`,
+                },
+                Date.now(),
+              );
+              
               const agentResult = await handleAgentSpawn(
                 config,
                 geminiClient,
                 agentRequest,
                 currentHistory,
+                (statusMessage) => {
+                  // Update the last info message with the agent's status
+                  setPendingHistoryItem({
+                    type: MessageType.INFO,
+                    text: `⚡ ${statusMessage}`,
+                  });
+                },
               );
               
               if (agentResult.isAgent && agentResult.result) {
+                // Show agent completion
+                const statusIcon = agentResult.result.success ? '✅' : '❌';
+                addItem(
+                  {
+                    type: MessageType.INFO,
+                    text: `${statusIcon} Agent completed: ${agentResult.result.description}`,
+                  },
+                  Date.now(),
+                );
+                
                 // Format and display the agent result
                 const agentResultContent = formatAgentResult(
                   agentRequest.task,
@@ -673,7 +709,7 @@ export const useGeminiStream = (
               addItem(
                 {
                   type: MessageType.ERROR,
-                  text: `Agent execution failed: ${getErrorMessage(error)}`,
+                  text: `❌ Agent execution failed: ${getErrorMessage(error)}`,
                 },
                 Date.now(),
               );

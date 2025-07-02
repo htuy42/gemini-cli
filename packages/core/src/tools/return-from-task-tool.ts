@@ -54,7 +54,7 @@ export class ReturnFromTaskTool extends BaseTool<ReturnFromTaskParams, ToolResul
         type: 'agent_return',
         ...params,
       }) }],
-      returnDisplay: `Returning from task: ${params.description}`,
+      returnDisplay: `${params.success ? '✅' : '❌'} Task ${params.success ? 'completed' : 'failed'}: ${params.description}`,
     };
   }
 }

@@ -71,7 +71,7 @@ export class TaskAgentTool extends BaseTool<TaskAgentParams, ToolResult> {
     
     return {
       llmContent: [{ text: JSON.stringify(agentRequest) }],
-      returnDisplay: `Spawning task agent for: ${params.task}`,
+      returnDisplay: `🤖 Spawning task agent for: "${params.task}"\n📋 Instructions: ${params.prompt.substring(0, 100)}${params.prompt.length > 100 ? '...' : ''}`,
     };
   }
 }

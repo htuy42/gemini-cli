@@ -40,20 +40,29 @@ export function isAgentSpawnRequest(response: ToolCallResponseInfo): AgentSpawnR
         ? response.responseParts 
         : [response.responseParts];
       
-      if (parts.length > 0) {
-        const firstPart = parts[0];
-        // Handle different part types
+      for (const part of parts) {
         let text: string | undefined;
-        if (typeof firstPart === 'string') {
-          text = firstPart;
-        } else if (typeof firstPart === 'object' && 'text' in firstPart) {
-          text = firstPart.text;
+        
+        // Handle different part types
+        if (typeof part === 'string') {
+          text = part;
+        } else if (typeof part === 'object' && part) {
+          if ('text' in part) {
+            text = part.text;
+          } else if ('functionResponse' in part && part.functionResponse?.response?.output) {
+            // Check inside functionResponse output
+            text = part.functionResponse.response.output;
+          }
         }
         
         if (text) {
-          const parsed = JSON.parse(text);
-          if (parsed.type === 'spawn_agent') {
-            return parsed as AgentSpawnRequest;
+          try {
+            const parsed = JSON.parse(text);
+            if (parsed.type === 'spawn_agent') {
+              return parsed as AgentSpawnRequest;
+            }
+          } catch {
+            // Not valid JSON, continue checking other parts
           }
         }
       }
@@ -72,6 +81,7 @@ export async function handleAgentSpawn(
   client: GeminiClient,
   request: AgentSpawnRequest,
   currentHistory: Content[],
+  onStatusUpdate?: (message: string) => void,
 ): Promise<AgentHandlerResult> {
   try {
     // Create agent system prompt
@@ -145,6 +155,7 @@ Focus on your assigned task. Be efficient, direct, and resilient.`;
       contentGenerator,
       currentHistory,
       agentSystemPrompt,
+      onStatusUpdate,
     );
     
     const result = await runner.run(

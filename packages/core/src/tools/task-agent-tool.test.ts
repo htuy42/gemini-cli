@@ -41,7 +41,7 @@ describe('TaskAgentTool', () => {
 
       const result = await taskAgentTool.execute(params, new AbortController().signal);
 
-      expect(result.returnDisplay).toBe('Spawning task agent for: Test task');
+      expect(result.returnDisplay).toBe('🤖 Spawning task agent for: "Test task"\n📋 Instructions: Test prompt');
       
       // Extract and parse the llmContent
       expect(Array.isArray(result.llmContent)).toBe(true);

@@ -23,6 +23,7 @@ export class TaskAgentRunner {
     private contentGenerator: ContentGenerator,
     private parentHistory: Content[],
     private agentSystemPrompt: string,
+    private onStatusUpdate?: (message: string) => void,
   ) {}
   
   async run(
@@ -111,6 +112,10 @@ export class TaskAgentRunner {
       for await (const event of events) {
         if (event.type === GeminiEventType.Content) {
           modelResponse += event.value;
+          // Show agent thinking (first 100 chars)
+          if (modelResponse.length <= 100) {
+            this.onStatusUpdate?.(`Agent thinking: ${modelResponse.trim()}...`);
+          }
         } else if (event.type === GeminiEventType.ToolCallRequest) {
           toolCallRequests.push(event.value);
         }
@@ -121,6 +126,10 @@ export class TaskAgentRunner {
       
       // Process tool calls
       if (turn.pendingToolCalls.length > 0) {
+        // Notify about tool execution
+        const toolNames = turn.pendingToolCalls.map(tc => tc.name).join(', ');
+        this.onStatusUpdate?.(`Agent executing tools: ${toolNames}`);
+        
         const toolResults = await this.processToolCalls(turn.pendingToolCalls);
         
         // Check if any tool returned the agent return marker
