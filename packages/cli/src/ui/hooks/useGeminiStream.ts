@@ -699,7 +699,7 @@ export const useGeminiStream = (
                 
                 // Submit the result as a continuation of the conversation
                 if (agentResultContent.parts) {
-                  submitQuery(agentResultContent.parts, {
+                  await submitQuery(agentResultContent.parts, {
                     isContinuation: true,
                   });
                 }

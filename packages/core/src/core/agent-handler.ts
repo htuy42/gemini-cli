@@ -51,7 +51,8 @@ export function isAgentSpawnRequest(response: ToolCallResponseInfo): AgentSpawnR
             text = part.text;
           } else if ('functionResponse' in part && part.functionResponse?.response?.output) {
             // Check inside functionResponse output
-            text = part.functionResponse.response.output;
+            const output = part.functionResponse.response.output;
+            text = typeof output === 'string' ? output : JSON.stringify(output);
           }
         }
         
