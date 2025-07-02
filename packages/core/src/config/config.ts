@@ -17,7 +17,6 @@ import { GrepTool } from '../tools/grep.js';
 import { GlobTool } from '../tools/glob.js';
 import { ShellTool } from '../tools/shell.js';
 import { FileTool } from '../tools/file-tool/file-tool.js';
-import { RestrictedFileTool } from '../tools/file-tool/restricted-file-tool.js';
 import { WebFetchTool } from '../tools/web-fetch.js';
 import { ReadManyFilesTool } from '../tools/read-many-files.js';
 import {
@@ -491,11 +490,9 @@ export function createToolRegistry(config: Config, isMainAgent: boolean = true):
   };
 
   if (isMainAgent) {
-    // Main agent is an orchestrator - only gets minimal tools
+    // Main agent is a pure orchestrator - only gets task management tools
     registerCoreTool(TaskAgentTool, config);
     registerCoreTool(TaskTool);
-    registerCoreTool(LSTool, targetDir, config);
-    registerCoreTool(RestrictedFileTool, targetDir, config); // Read-only file access
   } else {
     // Sub-agents get all tools except task_agent
     registerCoreTool(LSTool, targetDir, config);

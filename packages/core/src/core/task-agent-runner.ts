@@ -8,11 +8,11 @@ import { Content, Part, PartListUnion } from '@google/genai';
 import { Config } from '../config/config.js';
 import { GeminiChat } from './geminiChat.js';
 import { ContentGenerator } from './contentGenerator.js';
-import { Turn, ServerGeminiStreamEvent, GeminiEventType, ToolCallRequestInfo } from './turn.js';
+import { Turn, GeminiEventType, ToolCallRequestInfo } from './turn.js';
 import { TaskAgentResult } from '../tools/task-agent-tool.js';
 import { ReturnFromTaskTool } from '../tools/return-from-task-tool.js';
 import { ToolRegistry } from '../tools/tool-registry.js';
-import { getCoreSystemPrompt } from './prompts.js';
+import { ToolResult } from '../tools/tools.js';
 import { convertToFunctionResponse } from './coreToolScheduler.js';
 
 export class TaskAgentRunner {
@@ -92,7 +92,7 @@ export class TaskAgentRunner {
       // Check if we should warn about time
       if (isTimeWarning() && turnsRemaining === maxTurns) {
         const warningText = Array.isArray(lastMessage) && lastMessage.length === 1 && typeof lastMessage[0] === 'object' && 'text' in lastMessage[0] 
-          ? (lastMessage[0] as any).text + '\n\nWARNING: Your time is almost up (less than 30 seconds remaining). Please summarize your progress and return soon.'
+          ? ((lastMessage[0] as Part).text as string) + '\n\nWARNING: Your time is almost up (less than 30 seconds remaining). Please summarize your progress and return soon.'
           : 'WARNING: Your time is almost up (less than 30 seconds remaining). Please summarize your progress and return soon.';
         lastMessage = [{ text: warningText }];
       }
@@ -172,7 +172,7 @@ export class TaskAgentRunner {
     return await this.requestAgentSummary(chat, task);
   }
   
-  private checkForAgentReturn(response: any): TaskAgentResult | null {
+  private checkForAgentReturn(response: PartListUnion): TaskAgentResult | null {
     // Check if the response contains a return_from_task tool call result
     try {
       // The response is a PartListUnion from the tool
@@ -249,7 +249,7 @@ Use the return_from_task tool now.`;
           }
         }
       }
-    } catch (error) {
+    } catch {
       // Fall through to default
     }
     
@@ -272,7 +272,7 @@ Use the return_from_task tool now.`;
     return agentRegistry;
   }
   
-  private async processToolCalls(toolCalls: ToolCallRequestInfo[]): Promise<any[]> {
+  private async processToolCalls(toolCalls: ToolCallRequestInfo[]): Promise<Array<{error?: string; result?: ToolResult; toolCall: ToolCallRequestInfo}>> {
     if (!this.agentRegistry) {
       throw new Error('Agent registry not initialized');
     }
@@ -308,7 +308,7 @@ Use the return_from_task tool now.`;
     return results;
   }
   
-  private formatToolResults(results: any[]): string {
+  private formatToolResults(results: Array<{error?: string; result?: ToolResult; toolCall: ToolCallRequestInfo}>): string {
     const messages = results.map(r => {
       if (r.error) {
         return `Tool ${r.toolCall.name} failed: ${r.error}`;

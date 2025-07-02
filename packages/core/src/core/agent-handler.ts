@@ -8,7 +8,7 @@ import { ToolCallResponseInfo } from './turn.js';
 import { Config } from '../config/config.js';
 import { GeminiClient } from './client.js';
 import { TaskAgentRunner } from './task-agent-runner.js';
-import { getCoreSystemPrompt } from './prompts.js';
+import { getSubAgentSystemPrompt } from './prompts.js';
 import { Content } from '@google/genai';
 
 export interface AgentSpawnRequest {
@@ -75,7 +75,7 @@ export async function handleAgentSpawn(
 ): Promise<AgentHandlerResult> {
   try {
     // Create agent system prompt
-    const baseSystemPrompt = getCoreSystemPrompt(config.getUserMemory());
+    const baseSystemPrompt = getSubAgentSystemPrompt(config.getUserMemory());
     const agentSystemPrompt = `${baseSystemPrompt}
 
 ---

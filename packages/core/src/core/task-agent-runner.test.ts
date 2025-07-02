@@ -168,7 +168,7 @@ describe('TaskAgentRunner', () => {
       'test system prompt',
     );
 
-    let capturedToolCalls: any[] = [];
+    const capturedToolCalls: any[] = [];
 
     // Mock turn with multiple events
     const mockTurn = {

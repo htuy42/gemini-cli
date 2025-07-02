@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { getCoreSystemPrompt } from './prompts.js';
+import { getCoreSystemPrompt, getSubAgentSystemPrompt } from './prompts.js';
 import { isGitRepository } from '../utils/gitUtils.js';
 
 // Mock tool names if they are dynamically generated or complex
@@ -27,7 +27,7 @@ describe('Core System Prompt (prompts.ts)', () => {
     vi.stubEnv('SANDBOX', undefined);
     const prompt = getCoreSystemPrompt();
     expect(prompt).not.toContain('---\n\n'); // Separator should not be present
-    expect(prompt).toContain('You are an expert coding assistant'); // Check for core content
+    expect(prompt).toContain('You are a pure orchestrator agent'); // Check for core content
     expect(prompt).toMatchSnapshot(); // Use snapshot for base prompt structure
   });
 
@@ -35,7 +35,7 @@ describe('Core System Prompt (prompts.ts)', () => {
     vi.stubEnv('SANDBOX', undefined);
     const prompt = getCoreSystemPrompt('');
     expect(prompt).not.toContain('---\n\n');
-    expect(prompt).toContain('You are an expert coding assistant');
+    expect(prompt).toContain('You are a pure orchestrator agent');
     expect(prompt).toMatchSnapshot();
   });
 
@@ -43,7 +43,7 @@ describe('Core System Prompt (prompts.ts)', () => {
     vi.stubEnv('SANDBOX', undefined);
     const prompt = getCoreSystemPrompt('   \n  \t ');
     expect(prompt).not.toContain('---\n\n');
-    expect(prompt).toContain('You are an expert coding assistant');
+    expect(prompt).toContain('You are a pure orchestrator agent');
     expect(prompt).toMatchSnapshot();
   });
 
@@ -54,7 +54,7 @@ describe('Core System Prompt (prompts.ts)', () => {
     const prompt = getCoreSystemPrompt(memory);
 
     expect(prompt.endsWith(expectedSuffix)).toBe(true);
-    expect(prompt).toContain('You are an expert coding assistant'); // Ensure base prompt follows
+    expect(prompt).toContain('You are a pure orchestrator agent'); // Ensure base prompt follows
     expect(prompt).toMatchSnapshot(); // Snapshot the combined prompt
   });
 
@@ -96,5 +96,40 @@ describe('Core System Prompt (prompts.ts)', () => {
     const prompt = getCoreSystemPrompt();
     expect(prompt).not.toContain('## Git Operations');
     expect(prompt).toMatchSnapshot();
+  });
+});
+
+describe('Sub-Agent System Prompt (prompts.ts)', () => {
+  it('should return the sub-agent prompt when no userMemory is provided', () => {
+    vi.stubEnv('SANDBOX', undefined);
+    const prompt = getSubAgentSystemPrompt();
+    expect(prompt).not.toContain('---\n\n'); // Separator should not be present
+    expect(prompt).toContain('You are a specialized task agent'); // Check for core content
+    expect(prompt).toMatchSnapshot(); // Use snapshot for base prompt structure
+  });
+
+  it('should append userMemory to sub-agent prompt when provided', () => {
+    vi.stubEnv('SANDBOX', undefined);
+    const memory = 'This is custom user memory for sub-agent.';
+    const expectedSuffix = `\n\n---\n\n${memory}`;
+    const prompt = getSubAgentSystemPrompt(memory);
+
+    expect(prompt.endsWith(expectedSuffix)).toBe(true);
+    expect(prompt).toContain('You are a specialized task agent'); // Ensure base prompt follows
+    expect(prompt).toMatchSnapshot(); // Snapshot the combined prompt
+  });
+
+  it('should include environment information in sub-agent prompt', () => {
+    vi.stubEnv('SANDBOX', 'true');
+    const prompt = getSubAgentSystemPrompt();
+    expect(prompt).toContain('## Environment');
+    expect(prompt).toContain('Running in a sandboxed container');
+  });
+
+  it('should include git instructions in sub-agent prompt when in a git repo', () => {
+    vi.stubEnv('SANDBOX', undefined);
+    vi.mocked(isGitRepository).mockReturnValue(true);
+    const prompt = getSubAgentSystemPrompt();
+    expect(prompt).toContain('## Git Operations');
   });
 });
