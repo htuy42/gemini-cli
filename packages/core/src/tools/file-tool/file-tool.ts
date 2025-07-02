@@ -152,7 +152,7 @@ file("write", "/path/to/new.ts", "content here")`;
     }
   }
 
-  private validateAndParseArgs(args: unknown): any {
+  protected validateAndParseArgs(args: unknown): any {
     if (!args || typeof args !== 'object') {
       throw new Error('Arguments must be an object');
     }

@@ -5,10 +5,10 @@
  */
 
 import { FileTool } from './file-tool.js';
-import { FileParams, FileResult } from './types.js';
 import { Config } from '../../config/config.js';
-import { FileDiscoveryService } from '../../services/fileDiscoveryService.js';
-import { SchemaValidator } from '../schema-validator.js';
+import { ToolResult } from '../tools.js';
+import { FlashIntegration } from './flash-integration.js';
+import { FileReadResult } from './types.js';
 
 /**
  * A restricted version of FileTool that only allows read operations.
@@ -18,20 +18,20 @@ export class RestrictedFileTool extends FileTool {
   static override readonly Name = 'file';
   
   constructor(
-    targetDir: string,
+    rootPath: string,
     config: Config,
-    flash?: { verifyEdit: (a: string, b: string, c: string) => Promise<any> },
-    fileService?: FileDiscoveryService,
-    validator?: SchemaValidator,
+    flash?: FlashIntegration,
   ) {
-    super(targetDir, config, flash, fileService, validator);
+    super(rootPath, config, flash);
   }
   
   override async execute(
-    params: FileParams,
+    args: unknown,
     signal: AbortSignal,
-    outputCallback?: (chunk: string) => void,
-  ): Promise<FileResult> {
+  ): Promise<ToolResult> {
+    // Parse args to check operation
+    const params = this.validateAndParseArgs(args);
+    
     // Only allow read operations
     if (params.operation !== 'read') {
       return {
@@ -39,10 +39,10 @@ export class RestrictedFileTool extends FileTool {
         message: `Operation '${params.operation}' is not allowed. Main agent can only read files. To modify files, spawn a task agent.`,
         llmContent: `Error: Operation '${params.operation}' is not allowed. As the main orchestrator, you can only read files. To create, edit, or write files, you must spawn a task agent using the 'task_agent' tool.`,
         returnDisplay: `❌ Operation '${params.operation}' not allowed for main agent`,
-      } as FileResult;
+      } as FileReadResult;
     }
     
     // Delegate to parent class for read operations
-    return super.execute(params, signal, outputCallback);
+    return super.execute(args, signal);
   }
 }
