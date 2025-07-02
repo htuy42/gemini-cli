@@ -131,7 +131,7 @@ Focus on your assigned task. Be efficient, direct, and resilient.`;
       
       // Get the content generator from config
       const { createContentGenerator } = await import('../core/contentGenerator.js');
-      const contentGenerator = createContentGenerator(this.config);
+      const contentGenerator = await createContentGenerator(this.config.getContentGeneratorConfig());
       
       // Create and run the agent
       const runner = new TaskAgentRunner(
