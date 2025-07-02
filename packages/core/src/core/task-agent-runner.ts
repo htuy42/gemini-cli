@@ -313,7 +313,7 @@ Use the return_from_task tool now.`;
       if (r.error) {
         return `Tool ${r.toolCall.name} failed: ${r.error}`;
       }
-      return `Tool ${r.toolCall.name} completed: ${r.result.returnDisplay || 'Success'}`;
+      return `Tool ${r.toolCall.name} completed: ${r.result?.returnDisplay || 'Success'}`;
     });
     
     return messages.join('\n') + '\n\nContinue with your task.';
