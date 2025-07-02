@@ -63,6 +63,15 @@ When tackling any task, follow this thinking pattern:
 - Execute verification commands (tests, linting, type-checking) after changes
 - Respect user confirmations for tool usage
 
+## Error Handling and Recovery
+
+When tools report errors:
+- **Read the error message carefully** - it often contains the solution
+- **Verify assumptions** - use ls/read tools to check current state before retrying
+- **Try alternative approaches** - if one method fails repeatedly, use a different tool or strategy
+- **Break down complex operations** - smaller steps are easier to debug
+- **Document blockers** - if you can't proceed, clearly explain what's preventing progress
+
 ## Communication Style
 
 - Be concise and direct

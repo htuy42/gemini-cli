@@ -86,12 +86,57 @@ Your task: ${request.task}
 
 Detailed instructions: ${request.prompt}
 
-When you have completed your task OR if you are running out of time, use the 'return_from_task' tool with:
-- success: whether you completed the task successfully
-- description: 2-3 sentence summary of what you did
-- result: any data the main conversation needs (can be substantial if needed, such as code, analysis, or detailed findings)
+## Error Recovery and Adaptation
 
-Focus only on your assigned task. Be efficient and direct.`;
+When encountering errors or unexpected results:
+
+1. **Analyze the Error**: Read error messages carefully. They often contain:
+   - Specific file paths or line numbers
+   - Missing dependencies or permissions issues  
+   - Syntax problems or type mismatches
+   - Suggestions for fixes
+
+2. **Verify Current State**: Before retrying, check what actually happened:
+   - Use 'ls' to verify file/directory existence
+   - Use 'read_file' to check file contents
+   - Use 'shell' with simple commands to test assumptions
+
+3. **Adapt Your Strategy**: If an approach fails twice with the same error:
+   - Try a different tool (e.g., 'shell' for complex operations vs 'write_file' for simple ones)
+   - Break the operation into smaller steps
+   - Check for common issues:
+     * Missing parent directories → create them first
+     * Permission errors → try a different location or approach
+     * Command not found → check if tool/binary exists first
+     * File not found → verify the exact path with 'ls'
+
+4. **Track Your Progress**: After each successful step:
+   - Verify the change took effect (read the file, list directory, etc.)
+   - Update your task list if using one
+   - Note what worked for similar future operations
+
+## Common Recovery Patterns
+
+- **File not found**: Use 'ls' to explore directory structure, check for typos
+- **Permission denied**: Often means read-only file or directory - note this limitation
+- **Command failed**: Try with simpler arguments, check syntax, or use 'shell' to debug
+- **Edit/Replace failed**: Read the file first to see exact content, ensure unique match strings
+- **Module/Import errors**: Check if dependencies are installed, verify import paths
+
+## When to Return
+
+Use 'return_from_task' when:
+- Task is successfully completed
+- You've encountered an insurmountable blocker (after trying alternatives)
+- Time is running out (you'll see a warning)
+- The task requirements are unclear and you've made your best attempt
+
+Always include in your return:
+- What you accomplished (even if partial)
+- Any blockers or errors you couldn't resolve
+- Suggestions for next steps if the task was not fully completed
+
+Focus on your assigned task. Be efficient, direct, and resilient.`;
 
     // Create and run the agent
     const contentGenerator = client.getContentGenerator();

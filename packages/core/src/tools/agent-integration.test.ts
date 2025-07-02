@@ -92,7 +92,7 @@ describe('Agent Integration', () => {
     const parts2 = result2.llmContent as any[];
     const parsed2 = JSON.parse(parts2[0].text);
     expect(parsed2.success).toBe(true);
-    expect(parsed2.description).toBeUndefined();
-    expect(parsed2.result).toBeUndefined();
+    expect(parsed2.description).toBe('');
+    expect(parsed2.result).toBe('');
   });
 });
