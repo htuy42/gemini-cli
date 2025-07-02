@@ -637,7 +637,7 @@ export const useGeminiStream = (
             
             // Spawn and run the agent
             try {
-              const currentHistory = geminiClient.getHistory();
+              const currentHistory = await geminiClient.getHistory();
               const agentResult = await handleAgentSpawn(
                 config,
                 geminiClient,
@@ -656,15 +656,17 @@ export const useGeminiStream = (
                 addItem(
                   {
                     type: 'gemini',
-                    text: agentResultContent.parts[0].text || '',
+                    text: agentResultContent.parts?.[0]?.text || '',
                   },
                   Date.now(),
                 );
                 
                 // Submit the result as a continuation of the conversation
-                submitQuery(agentResultContent.parts, {
-                  isContinuation: true,
-                });
+                if (agentResultContent.parts) {
+                  submitQuery(agentResultContent.parts, {
+                    isContinuation: true,
+                  });
+                }
               }
             } catch (error) {
               // Handle agent execution error

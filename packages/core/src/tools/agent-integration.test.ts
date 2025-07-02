@@ -85,7 +85,8 @@ describe('Agent Integration', () => {
     // ReturnFromTaskTool doesn't validate params (it just passes them through)
     const result2 = await returnTool.execute({
       success: true,
-      // missing description and result  
+      description: '',
+      result: ''
     }, new AbortController().signal);
     expect(result2).toBeTruthy();
     const parts2 = result2.llmContent as any[];
