@@ -133,13 +133,19 @@ Focus on your assigned task. Be efficient, direct, and resilient.`;
       const { createContentGenerator } = await import('../core/contentGenerator.js');
       const contentGenerator = await createContentGenerator(this.config.getContentGeneratorConfig());
       
+      // Collect status updates from the agent
+      const statusUpdates: string[] = [];
+      const onStatusUpdate = (message: string) => {
+        statusUpdates.push(message);
+      };
+      
       // Create and run the agent
       const runner = new TaskAgentRunner(
         this.config,
         contentGenerator,
         currentHistory,
         agentSystemPrompt,
-        undefined, // No status updates needed for synchronous execution
+        onStatusUpdate,
       );
       
       const result = await runner.run(
@@ -149,11 +155,15 @@ Focus on your assigned task. Be efficient, direct, and resilient.`;
         params.timeoutMs ?? 300000,
       );
       
-      // Format the result as a regular tool response
+      // Format the result as a regular tool response with agent activity log
+      const activityLog = statusUpdates.length > 0 
+        ? `\n\nAgent Activity:\n${statusUpdates.map(s => `  - ${s}`).join('\n')}`
+        : '';
+      
       const resultText = `Task Agent completed task: "${params.task}"
 Success: ${result.success}
 Summary: ${result.description}
-${result.result ? `\nResult:\n${result.result}` : ''}`;
+${result.result ? `\nResult:\n${result.result}` : ''}${activityLog}`;
       
       return {
         llmContent: [{ text: resultText }],

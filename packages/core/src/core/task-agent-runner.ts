@@ -32,6 +32,9 @@ export class TaskAgentRunner {
     maxTurns: number,
     timeoutMs: number,
   ): Promise<TaskAgentResult> {
+    // Notify task start
+    this.onStatusUpdate?.(`Starting task: ${task}`);
+    
     // Create agent-specific tool registry
     this.agentRegistry = await this.createAgentToolRegistry();
     
@@ -67,11 +70,13 @@ export class TaskAgentRunner {
       ]);
       
       clearTimeout(warningTimeout);
+      this.onStatusUpdate?.(`Task completed: ${result.success ? 'Success' : 'Failed'}`);
       return result;
     } catch (error) {
       clearTimeout(warningTimeout);
       
       if (error instanceof Error && error.message === 'Agent timeout') {
+        this.onStatusUpdate?.('Agent timeout - requesting summary');
         // Ask agent to summarize before hard cutoff
         return await this.requestAgentSummary(agentChat, task);
       }
@@ -112,9 +117,10 @@ export class TaskAgentRunner {
       for await (const event of events) {
         if (event.type === GeminiEventType.Content) {
           modelResponse += event.value;
-          // Show agent thinking (first 100 chars)
-          if (modelResponse.length <= 100) {
-            this.onStatusUpdate?.(`Agent thinking: ${modelResponse.trim()}...`);
+          // Show agent thinking (first 150 chars)
+          if (modelResponse.length <= 150 && modelResponse.trim()) {
+            const preview = modelResponse.trim().replace(/\n/g, ' ');
+            this.onStatusUpdate?.(`Agent thinking: ${preview}${preview.length === 150 ? '...' : ''}`);
           }
         } else if (event.type === GeminiEventType.ToolCallRequest) {
           toolCallRequests.push(event.value);
@@ -126,9 +132,13 @@ export class TaskAgentRunner {
       
       // Process tool calls
       if (turn.pendingToolCalls.length > 0) {
-        // Notify about tool execution
-        const toolNames = turn.pendingToolCalls.map(tc => tc.name).join(', ');
-        this.onStatusUpdate?.(`Agent executing tools: ${toolNames}`);
+        // Notify about tool execution with more detail
+        for (const toolCall of turn.pendingToolCalls) {
+          const argsPreview = toolCall.args ? 
+            JSON.stringify(toolCall.args).slice(0, 100) : 
+            'no args';
+          this.onStatusUpdate?.(`Agent calling ${toolCall.name}: ${argsPreview}${argsPreview.length === 100 ? '...' : ''}`);
+        }
         
         const toolResults = await this.processToolCalls(turn.pendingToolCalls);
         
@@ -137,6 +147,7 @@ export class TaskAgentRunner {
           if (result.result?.llmContent) {
             const agentReturn = this.checkForAgentReturn(result.result.llmContent);
             if (agentReturn) {
+              this.onStatusUpdate?.('Agent returning with results');
               return agentReturn;
             }
           }
@@ -202,9 +213,9 @@ export class TaskAgentRunner {
         const parsed = JSON.parse(textContent);
         if (parsed.type === 'agent_return') {
           return {
-            success: parsed.success,
-            description: parsed.description,
-            result: parsed.result,
+            success: parsed.success ?? false,
+            description: parsed.description || 'No description provided',
+            result: parsed.result || '',
           };
         }
       }
@@ -290,8 +301,10 @@ Use the return_from_task tool now.`;
     for (const toolCall of toolCalls) {
       const tool = this.agentRegistry.getTool(toolCall.name);
       if (!tool) {
+        const error = `Tool ${toolCall.name} not found`;
+        this.onStatusUpdate?.(`Error: ${error}`);
         results.push({
-          error: `Tool ${toolCall.name} not found`,
+          error,
           toolCall,
         });
         continue;
@@ -302,13 +315,27 @@ Use the return_from_task tool now.`;
           toolCall.args || {},
           new AbortController().signal,
         );
+        
+        // Report successful tool execution
+        if (result.returnDisplay) {
+          const displayText = typeof result.returnDisplay === 'string' 
+            ? result.returnDisplay 
+            : JSON.stringify(result.returnDisplay);
+          const displayPreview = displayText.slice(0, 150).replace(/\n/g, ' ');
+          this.onStatusUpdate?.(`${toolCall.name} result: ${displayPreview}${displayText.length > 150 ? '...' : ''}`);
+        } else {
+          this.onStatusUpdate?.(`${toolCall.name} completed successfully`);
+        }
+        
         results.push({
           result,
           toolCall,
         });
       } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        this.onStatusUpdate?.(`${toolCall.name} failed: ${errorMsg}`);
         results.push({
-          error: error instanceof Error ? error.message : String(error),
+          error: errorMsg,
           toolCall,
         });
       }

@@ -27,6 +27,7 @@ describe('TaskAgentTool', () => {
     mockConfig = {
       getUserMemory: vi.fn().mockReturnValue('Test memory content'),
       getGeminiClient: vi.fn().mockReturnValue(mockGeminiClient),
+      getContentGeneratorConfig: vi.fn().mockReturnValue({}),
     } as unknown as Config;
 
     taskAgentTool = new TaskAgentTool(mockConfig);
