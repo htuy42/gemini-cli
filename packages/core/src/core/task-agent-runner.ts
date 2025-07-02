@@ -167,10 +167,10 @@ Parent agent has assigned you a specific task to complete.`;
       for await (const event of events) {
         if (event.type === GeminiEventType.Content) {
           modelResponse += event.value;
-          // Show agent thinking (first 150 chars)
-          if (modelResponse.length <= 150 && modelResponse.trim()) {
+          // Show agent thinking (first 200 chars)
+          if (modelResponse.length <= 200 && modelResponse.trim()) {
             const preview = modelResponse.trim().replace(/\n/g, ' ');
-            this.onStatusUpdate?.(`Agent thinking: ${preview}${preview.length === 150 ? '...' : ''}`);
+            this.onStatusUpdate?.(`Agent thinking: ${preview}${preview.length === 200 ? '...' : ''}`);
           }
         } else if (event.type === GeminiEventType.ToolCallRequest) {
           toolCallRequests.push(event.value);
@@ -184,10 +184,23 @@ Parent agent has assigned you a specific task to complete.`;
       if (turn.pendingToolCalls.length > 0) {
         // Notify about tool execution with more detail
         for (const toolCall of turn.pendingToolCalls) {
-          const argsPreview = toolCall.args ? 
-            JSON.stringify(toolCall.args).slice(0, 100) : 
-            'no args';
-          this.onStatusUpdate?.(`Agent calling ${toolCall.name}: ${argsPreview}${argsPreview.length === 100 ? '...' : ''}`);
+          let argsDescription = '';
+          if (toolCall.args && typeof toolCall.args === 'object') {
+            // Special formatting for common tools
+            if (toolCall.name === 'file' && 'operation' in toolCall.args) {
+              const op = toolCall.args.operation;
+              const path = 'path' in toolCall.args ? toolCall.args.path : 'unknown';
+              argsDescription = `${op} ${path}`;
+            } else if (toolCall.name === 'shell' && 'command' in toolCall.args) {
+              argsDescription = String(toolCall.args.command);
+            } else if ((toolCall.name === 'grep' || toolCall.name === 'glob') && 'pattern' in toolCall.args) {
+              argsDescription = `pattern: "${toolCall.args.pattern}"`;
+            } else {
+              argsDescription = JSON.stringify(toolCall.args).slice(0, 100);
+              if (argsDescription.length === 100) argsDescription += '...';
+            }
+          }
+          this.onStatusUpdate?.(`Agent calling ${toolCall.name}: ${argsDescription}`);
         }
         
         const toolResults = await this.processToolCalls(turn.pendingToolCalls);
@@ -366,13 +379,19 @@ Use the return_from_task tool now.`;
           new AbortController().signal,
         );
         
-        // Report successful tool execution
+        // Report successful tool execution with better formatting
         if (result.returnDisplay) {
           const displayText = typeof result.returnDisplay === 'string' 
             ? result.returnDisplay 
             : JSON.stringify(result.returnDisplay);
-          const displayPreview = displayText.slice(0, 150).replace(/\n/g, ' ');
-          this.onStatusUpdate?.(`${toolCall.name} result: ${displayPreview}${displayText.length > 150 ? '...' : ''}`);
+          
+          // Truncate long outputs but show meaningful preview
+          let preview = displayText.slice(0, 300).replace(/\n+/g, ' ');
+          if (displayText.length > 300) {
+            preview += `... (${displayText.length} total chars)`;
+          }
+          
+          this.onStatusUpdate?.(`${toolCall.name} completed: ${preview}`);
         } else {
           this.onStatusUpdate?.(`${toolCall.name} completed successfully`);
         }

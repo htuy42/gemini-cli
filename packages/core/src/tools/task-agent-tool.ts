@@ -53,13 +53,18 @@ export class TaskAgentTool extends BaseTool<TaskAgentParams, ToolResult> {
         },
         required: ['task', 'prompt'],
       },
+      true, // isOutputMarkdown
+      true, // canUpdateOutput - enables streaming
     );
   }
 
   async execute(
     params: TaskAgentParams,
     signal: AbortSignal,
+    updateOutput?: (output: string) => void,
   ): Promise<ToolResult> {
+    let streamedOutput = '';
+    
     try {
       // Create agent system prompt
       const baseSystemPrompt = getSubAgentSystemPrompt(this.config.getUserMemory());
@@ -133,10 +138,31 @@ Focus on your assigned task. Be efficient, direct, and resilient.`;
       const { createContentGenerator } = await import('../core/contentGenerator.js');
       const contentGenerator = await createContentGenerator(this.config.getContentGeneratorConfig());
       
+      // Initialize streaming output with clear visual indicators
+      streamedOutput = `🤖 **Sub-Agent Task:** ${params.task}\n\n`;
+      streamedOutput += `📋 **Instructions:** ${params.prompt}\n\n`;
+      streamedOutput += `---\n\n`;
+      streamedOutput += `### 🔄 Agent Activity:\n\n`;
+      
+      // Update the display immediately
+      updateOutput?.(streamedOutput);
+      
       // Collect status updates from the agent
       const statusUpdates: string[] = [];
       const onStatusUpdate = (message: string) => {
         statusUpdates.push(message);
+        // Stream updates in real-time with timestamp
+        const timestamp = new Date().toLocaleTimeString();
+        const formattedMessage = message
+          .replace(/^Starting task:/, '🚀 Starting task:')
+          .replace(/^Agent thinking:/, '💭 Thinking:')
+          .replace(/^Agent calling/, '🔧 Calling')
+          .replace(/^Task completed:/, '✅ Task completed:')
+          .replace(/^Agent returning/, '📤 Returning')
+          .replace(/^Agent timeout/, '⏱️ Timeout:');
+        
+        streamedOutput += `**[${timestamp}]** ${formattedMessage}\n\n`;
+        updateOutput?.(streamedOutput);
       };
       
       // Create and run the agent
@@ -155,15 +181,19 @@ Focus on your assigned task. Be efficient, direct, and resilient.`;
         params.timeoutMs ?? 300000,
       );
       
-      // Format the result as a regular tool response with agent activity log
-      const activityLog = statusUpdates.length > 0 
-        ? `\n\nAgent Activity:\n${statusUpdates.map(s => `  - ${s}`).join('\n')}`
-        : '';
+      // Add completion summary to the streamed output
+      streamedOutput += `\n---\n\n`;
+      streamedOutput += `### 📊 Task Completion:\n\n`;
+      streamedOutput += result.success ? '✅ **Status:** Success\n\n' : '❌ **Status:** Failed\n\n';
+      streamedOutput += `**Summary:** ${result.description}\n\n`;
+      if (result.result) {
+        streamedOutput += `**Result:**\n\`\`\`\n${result.result}\n\`\`\`\n`;
+      }
       
-      const resultText = `Task Agent completed task: "${params.task}"
-Success: ${result.success}
-Summary: ${result.description}
-${result.result ? `\nResult:\n${result.result}` : ''}${activityLog}`;
+      // Final update
+      updateOutput?.(streamedOutput);
+      
+      const resultText = streamedOutput;
       
       return {
         llmContent: [{ text: resultText }],
@@ -172,6 +202,18 @@ ${result.result ? `\nResult:\n${result.result}` : ''}${activityLog}`;
     } catch (error) {
       // Handle agent execution errors
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      // Update streamed output with error if streaming was initialized
+      if (updateOutput) {
+        const errorOutput = (streamedOutput || '') + `\n---\n\n### ❌ Error:\n\n**Task Agent failed:** ${errorMessage}\n`;
+        updateOutput(errorOutput);
+        
+        return {
+          llmContent: [{ text: errorOutput }],
+          returnDisplay: errorOutput,
+        };
+      }
+      
       const errorText = `Task Agent failed to execute: ${errorMessage}`;
       
       return {
