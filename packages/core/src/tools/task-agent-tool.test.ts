@@ -80,16 +80,16 @@ describe('TaskAgentTool', () => {
   describe('parameter validation', () => {
     it('should require task and prompt parameters', () => {
       const schema = taskAgentTool.schema;
-      expect(schema.parameters.required).toContain('task');
-      expect(schema.parameters.required).toContain('prompt');
+      expect(schema.parameters!.required).toContain('task');
+      expect(schema.parameters!.required).toContain('prompt');
     });
 
     it('should have optional maxTurns and timeoutMs parameters', () => {
       const schema = taskAgentTool.schema;
-      expect(schema.parameters.properties.maxTurns).toBeDefined();
-      expect(schema.parameters.properties.timeoutMs).toBeDefined();
-      expect(schema.parameters.required).not.toContain('maxTurns');
-      expect(schema.parameters.required).not.toContain('timeoutMs');
+      expect(schema.parameters!.properties!.maxTurns).toBeDefined();
+      expect(schema.parameters!.properties!.timeoutMs).toBeDefined();
+      expect(schema.parameters!.required).not.toContain('maxTurns');
+      expect(schema.parameters!.required).not.toContain('timeoutMs');
     });
   });
 });

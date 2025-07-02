@@ -6,7 +6,6 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { FileTool } from './file-tool.js';
-import { FileMemory } from './file-memory.js';
 import { FlashIntegration } from './flash-integration.js';
 import { Config } from '../../config/config.js';
 import * as fs from 'fs/promises';
@@ -50,7 +49,7 @@ describe('FileTool', () => {
     } as any;
     
     // Create file tool with injected dependencies
-    fileTool = new FileTool(rootPath, mockConfig, undefined, mockFlashIntegration);
+    fileTool = new FileTool(rootPath, mockConfig, mockFlashIntegration);
   });
 
   afterEach(() => {
@@ -85,9 +84,9 @@ export { hello };`;
       expect(result.metadata?.totalLines).toBe(5);
     });
 
-    it('should indicate when file is already read and unchanged', async () => {
+    it('should read file content on subsequent reads', async () => {
       // First read
-      await fileTool.execute(
+      const firstResult = await fileTool.execute(
         {
           operation: 'read',
           path: testFilePath,
@@ -96,7 +95,7 @@ export { hello };`;
       ) as FileReadResult;
 
       // Second read
-      const result = await fileTool.execute(
+      const secondResult = await fileTool.execute(
         {
           operation: 'read',
           path: testFilePath,
@@ -104,8 +103,10 @@ export { hello };`;
         new AbortController().signal
       ) as FileReadResult;
 
-      expect(result.status).toBe('already_read');
-      expect(result.message).toContain('File already read (unchanged)');
+      // Both reads should succeed with same content
+      expect(firstResult.status).toBe('success');
+      expect(secondResult.status).toBe('success');
+      expect(secondResult.llmContent).toBe(firstResult.llmContent);
     });
 
     it('should read specific lines', async () => {
@@ -169,12 +170,12 @@ export { hello };`;
       );
     });
 
-    it('should cache summaries', async () => {
+    it('should generate fresh summaries on each request', async () => {
       const mockSummary = 'File exports hello function';
       mockFlashIntegration.generateSummary = vi.fn().mockResolvedValue(mockSummary);
 
       // First summary
-      await fileTool.execute(
+      const firstResult = await fileTool.execute(
         {
           operation: 'read',
           path: testFilePath,
@@ -187,7 +188,7 @@ export { hello };`;
       ) as FileReadResult;
 
       // Second summary with same prompt
-      const result = await fileTool.execute(
+      const secondResult = await fileTool.execute(
         {
           operation: 'read',
           path: testFilePath,
@@ -199,8 +200,12 @@ export { hello };`;
         new AbortController().signal
       ) as FileReadResult;
 
-      expect(result.message).toBe('Using cached summary');
-      expect(mockFlashIntegration.generateSummary).toHaveBeenCalledTimes(1);
+      expect(firstResult.status).toBe('success');
+      expect(secondResult.status).toBe('success');
+      expect(firstResult.llmContent).toBe(mockSummary);
+      expect(secondResult.llmContent).toBe(mockSummary);
+      // Should generate summary twice since we don't cache
+      expect(mockFlashIntegration.generateSummary).toHaveBeenCalledTimes(2);
     });
 
     it('should handle file not found', async () => {

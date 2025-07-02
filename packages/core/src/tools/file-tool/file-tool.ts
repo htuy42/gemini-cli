@@ -9,7 +9,6 @@ import * as path from 'path';
 import { existsSync, statSync } from 'fs';
 import { Config } from '../../config/config.js';
 import { BaseTool, ToolResult } from '../tools.js';
-import { FileMemory, hashContent } from './file-memory.js';
 import { FlashIntegration } from './flash-integration.js';
 import {
   FileReadOptions,
@@ -28,7 +27,6 @@ import { detectFileType } from '../../utils/fileUtils.js';
  */
 export class FileTool extends BaseTool {
   static Name = 'file';
-  private memory: FileMemory;
   private flash: FlashIntegration;
   
   static description = `Unified file operations tool for reading, editing, and writing files.
@@ -48,7 +46,6 @@ file("write", "/path/to/new.ts", "content here")`;
   constructor(
     private rootPath: string, 
     private config: Config,
-    memory?: FileMemory,
     flash?: FlashIntegration
   ) {
     super(
@@ -114,7 +111,6 @@ file("write", "/path/to/new.ts", "content here")`;
         required: ['operation', 'path'],
       }
     );
-    this.memory = memory || new FileMemory();
     this.flash = flash || new FlashIntegration(config);
   }
 
@@ -255,24 +251,19 @@ file("write", "/path/to/new.ts", "content here")`;
 
       // Read file content
       const content = await fs.readFile(filePath, 'utf-8');
-      const contentHash = hashContent(content);
       const lines = content.split('\n');
-      
-      // Check memory
-      const memoryEntry = this.memory.get(filePath);
-      const hasChanged = this.memory.hasFileChanged(filePath, contentHash);
       
       const mode = options.mode || 'full';
 
       switch (mode) {
         case 'full':
-          return this.readFull(filePath, content, lines, hasChanged, contentHash, options);
+          return this.readFull(filePath, content, lines, options);
           
         case 'lines':
           return this.readLines(filePath, content, lines, options);
           
         case 'summary':
-          return this.readSummary(filePath, content, contentHash, options, signal);
+          return this.readSummary(filePath, content, options, signal);
           
         default:
           return {
@@ -296,8 +287,6 @@ file("write", "/path/to/new.ts", "content here")`;
     filePath: string,
     content: string,
     lines: string[],
-    hasChanged: boolean,
-    contentHash: string,
     options: FileReadOptions
   ): Promise<FileReadResult> {
     const includeLineNumbers = options.includeLineNumbers ?? true;
@@ -305,28 +294,8 @@ file("write", "/path/to/new.ts", "content here")`;
       ? lines.map((line, i) => `${i + 1}: ${line}`).join('\n')
       : content;
 
-    // Update memory
-    if (!this.memory.hasFile(filePath) || hasChanged) {
-      this.memory.set(filePath, {
-        contentHash,
-        lastModified: Date.now(),
-        lastAccessed: Date.now(),
-        summaries: new Map(),
-        linesShown: new Set(Array.from({ length: lines.length }, (_, i) => i + 1)),
-      });
-    } else {
-      const entry = this.memory.get(filePath)!;
-      entry.lastAccessed = Date.now();
-    }
-
-    const status = this.memory.hasFile(filePath) && !hasChanged ? 'already_read' : 'success';
-    const message = status === 'already_read'
-      ? `File already read (unchanged). ${lines.length} lines.`
-      : undefined;
-
     return {
-      status,
-      message,
+      status: 'success',
       llmContent: displayContent,
       returnDisplay: `Read ${filePath} (${lines.length} lines)`,
       metadata: {
@@ -367,8 +336,6 @@ file("write", "/path/to/new.ts", "content here")`;
       ? selectedLines.map((line, i) => `${start + i}: ${line}`).join('\n')
       : selectedLines.join('\n');
 
-    // Record lines shown
-    this.memory.recordLinesShown(filePath, start, end);
 
     return {
       status: 'success',
@@ -384,39 +351,15 @@ file("write", "/path/to/new.ts", "content here")`;
   private async readSummary(
     filePath: string,
     content: string,
-    contentHash: string,
     options: FileReadOptions,
     signal: AbortSignal
   ): Promise<FileReadResult> {
     const prompt = options.prompt || 'Provide a structural overview of this file';
     
-    // Check cache
-    const cachedSummary = this.memory.getCachedSummary(filePath, prompt);
-    if (cachedSummary && !this.memory.hasFileChanged(filePath, contentHash)) {
-      return {
-        status: 'success',
-        llmContent: cachedSummary,
-        returnDisplay: `Summary of ${filePath} (cached)`,
-        message: 'Using cached summary',
-      };
-    }
-
-    // Generate new summary
+    // Generate summary
     try {
       const summary = await this.flash.generateSummary(filePath, content, prompt);
       
-      // Update memory and cache
-      if (!this.memory.hasFile(filePath)) {
-        this.memory.set(filePath, {
-          contentHash,
-          lastModified: Date.now(),
-          lastAccessed: Date.now(),
-          summaries: new Map([[prompt, summary]]),
-        });
-      } else {
-        this.memory.cacheSummary(filePath, prompt, summary);
-      }
-
       return {
         status: 'success',
         llmContent: summary,
@@ -507,8 +450,6 @@ file("write", "/path/to/new.ts", "content here")`;
       const newContent = lines.join('\n');
       await fs.writeFile(filePath, newContent, 'utf-8');
       
-      // Update memory
-      this.memory.updateAfterEdit(filePath, hashContent(newContent));
       
       // Generate diff
       const diff = createDiff(
@@ -660,8 +601,6 @@ file("write", "/path/to/new.ts", "content here")`;
       // Write file
       await fs.writeFile(filePath, content, 'utf-8');
       
-      // Update memory
-      this.memory.updateAfterEdit(filePath, hashContent(content));
       
       return {
         status: 'success',

@@ -28,7 +28,7 @@ export interface FileReadOptions {
  * Result from file read operations
  */
 export interface FileReadResult extends ToolResult {
-  status?: 'success' | 'already_read' | 'error';
+  status?: 'success' | 'error';
   content?: string;
   message?: string;
   metadata?: {
@@ -91,17 +91,6 @@ export interface FileWriteResult extends ToolResult {
     fileSize: number;
     created: boolean;
   };
-}
-
-/**
- * File memory entry
- */
-export interface FileMemoryEntry {
-  contentHash: string;
-  lastModified: number;
-  lastAccessed: number;
-  summaries: Map<string, string>;
-  linesShown?: Set<number>;
 }
 
 /**

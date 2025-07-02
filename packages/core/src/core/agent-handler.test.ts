@@ -108,7 +108,7 @@ describe('agent-handler', () => {
 
       expect(result.role).toBe('model');
       expect(result.parts).toHaveLength(1);
-      const text = (result.parts[0] as { text: string }).text;
+      const text = (result.parts![0] as { text: string }).text;
       expect(text).toContain('Test task');
       expect(text).toContain('Success: true');
       expect(text).toContain('Successfully completed the task');
@@ -122,7 +122,7 @@ describe('agent-handler', () => {
         result: '',
       });
 
-      const text = (result.parts[0] as { text: string }).text;
+      const text = (result.parts![0] as { text: string }).text;
       expect(text).toContain('Failed task');
       expect(text).toContain('Success: false');
       expect(text).toContain('Failed to complete due to error');
@@ -133,7 +133,7 @@ describe('agent-handler', () => {
       const result = formatAgentResult('Task', undefined);
 
       expect(result.role).toBe('model');
-      const text = (result.parts[0] as { text: string }).text;
+      const text = (result.parts![0] as { text: string }).text;
       expect(text).toBe('Agent execution failed with no result.');
     });
   });

@@ -4,15 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Content, Part } from '@google/genai';
+import { Content, Part, PartListUnion } from '@google/genai';
 import { Config } from '../config/config.js';
 import { GeminiChat } from './geminiChat.js';
 import { ContentGenerator } from './contentGenerator.js';
-import { Turn, ServerGeminiStreamEvent, GeminiEventType } from './turn.js';
+import { Turn, ServerGeminiStreamEvent, GeminiEventType, ToolCallRequestInfo } from './turn.js';
 import { TaskAgentResult } from '../tools/task-agent-tool.js';
 import { ReturnFromTaskTool } from '../tools/return-from-task-tool.js';
 import { ToolRegistry } from '../tools/tool-registry.js';
 import { getCoreSystemPrompt } from './prompts.js';
+import { convertToFunctionResponse } from './coreToolScheduler.js';
 
 export class TaskAgentRunner {
   private agentRegistry?: ToolRegistry;
@@ -85,34 +86,83 @@ export class TaskAgentRunner {
     isTimeWarning: () => boolean,
   ): Promise<TaskAgentResult> {
     let turnsRemaining = maxTurns;
-    let lastMessage = `Begin working on your task: ${task}`;
+    let lastMessage: PartListUnion = [{ text: `Begin working on your task: ${task}` }];
     
     while (turnsRemaining > 0) {
       // Check if we should warn about time
       if (isTimeWarning() && turnsRemaining === maxTurns) {
-        lastMessage += '\n\nWARNING: Your time is almost up (less than 30 seconds remaining). Please summarize your progress and return soon.';
+        const warningText = Array.isArray(lastMessage) && lastMessage.length === 1 && typeof lastMessage[0] === 'object' && 'text' in lastMessage[0] 
+          ? (lastMessage[0] as any).text + '\n\nWARNING: Your time is almost up (less than 30 seconds remaining). Please summarize your progress and return soon.'
+          : 'WARNING: Your time is almost up (less than 30 seconds remaining). Please summarize your progress and return soon.';
+        lastMessage = [{ text: warningText }];
       }
       
       // Send message and get response
       const turn = new Turn(chat);
-      const response = await turn.run(
-        [{ text: lastMessage }],
+      const events = turn.run(
+        lastMessage,
         new AbortController().signal,
       );
       
-      // Check if agent returned
-      const agentReturn = this.checkForAgentReturn(response);
-      if (agentReturn) {
-        return agentReturn;
+      // Collect all events from the turn
+      let modelResponse = '';
+      const toolCallRequests: ToolCallRequestInfo[] = [];
+      
+      for await (const event of events) {
+        if (event.type === GeminiEventType.Content) {
+          modelResponse += event.value;
+        } else if (event.type === GeminiEventType.ToolCallRequest) {
+          toolCallRequests.push(event.value);
+        }
       }
+      
+      // Store pending tool calls for processing
+      turn.pendingToolCalls.push(...toolCallRequests);
       
       // Process tool calls
       if (turn.pendingToolCalls.length > 0) {
         const toolResults = await this.processToolCalls(turn.pendingToolCalls);
-        lastMessage = this.formatToolResults(toolResults);
+        
+        // Check if any tool returned the agent return marker
+        for (const result of toolResults) {
+          if (result.result?.llmContent) {
+            const agentReturn = this.checkForAgentReturn(result.result.llmContent);
+            if (agentReturn) {
+              return agentReturn;
+            }
+          }
+        }
+        
+        // Convert tool results to function response parts
+        const responseParts: Part[] = [];
+        for (const result of toolResults) {
+          if (result.error) {
+            const errorResponse = convertToFunctionResponse(
+              result.toolCall.name,
+              result.toolCall.callId,
+              `Error: ${result.error}`,
+            );
+            const parts = Array.isArray(errorResponse) ? errorResponse : [errorResponse];
+            responseParts.push(...parts.filter(p => typeof p === 'object'));
+          } else if (result.result) {
+            const response = convertToFunctionResponse(
+              result.toolCall.name,
+              result.toolCall.callId,
+              result.result.llmContent,
+            );
+            const parts = Array.isArray(response) ? response : [response];
+            responseParts.push(...parts.filter(p => typeof p === 'object'));
+          }
+        }
+        
+        // Continue conversation with tool responses
+        lastMessage = responseParts;
+      } else if (modelResponse.trim()) {
+        // Continue with model's response
+        lastMessage = [{ text: 'Please continue with your task or use the return_from_task tool when finished.' }];
       } else {
-        // No tool calls, prepare next message
-        lastMessage = 'Continue with your task.';
+        // No tool calls or response, prepare generic next message
+        lastMessage = [{ text: 'Continue with your task.' }];
       }
       
       turnsRemaining--;
@@ -125,9 +175,22 @@ export class TaskAgentRunner {
   private checkForAgentReturn(response: any): TaskAgentResult | null {
     // Check if the response contains a return_from_task tool call result
     try {
-      // Look through the response for our special return marker
-      if (typeof response === 'string' && response.includes('"type":"agent_return"')) {
-        const parsed = JSON.parse(response);
+      // The response is a PartListUnion from the tool
+      let textContent: string | undefined;
+      
+      if (Array.isArray(response)) {
+        // It's a Part[]
+        const firstPart = response[0];
+        if (firstPart && typeof firstPart === 'object' && 'text' in firstPart) {
+          textContent = firstPart.text;
+        }
+      } else if (typeof response === 'object' && response && 'text' in response) {
+        // It's a single Part
+        textContent = response.text;
+      }
+      
+      if (textContent) {
+        const parsed = JSON.parse(textContent);
         if (parsed.type === 'agent_return') {
           return {
             success: parsed.success,
@@ -137,7 +200,7 @@ export class TaskAgentRunner {
         }
       }
     } catch {
-      // Not a return response
+      // Not a return response or invalid JSON
     }
     return null;
   }
@@ -156,14 +219,35 @@ Use the return_from_task tool now.`;
     
     try {
       const turn = new Turn(chat);
-      const response = await turn.run(
+      const events = turn.run(
         [{ text: summaryPrompt }],
         new AbortController().signal,
       );
       
-      const agentReturn = this.checkForAgentReturn(response);
-      if (agentReturn) {
-        return agentReturn;
+      // Collect events
+      const toolCallRequests: ToolCallRequestInfo[] = [];
+      for await (const event of events) {
+        if (event.type === GeminiEventType.ToolCallRequest) {
+          toolCallRequests.push(event.value);
+        }
+      }
+      
+      // Store pending tool calls for processing
+      turn.pendingToolCalls.push(...toolCallRequests);
+      
+      // Process tool calls if any
+      if (turn.pendingToolCalls.length > 0) {
+        const toolResults = await this.processToolCalls(turn.pendingToolCalls);
+        
+        // Check if return_from_task was called
+        for (const result of toolResults) {
+          if (result.result?.llmContent) {
+            const agentReturn = this.checkForAgentReturn(result.result.llmContent);
+            if (agentReturn) {
+              return agentReturn;
+            }
+          }
+        }
       }
     } catch (error) {
       // Fall through to default
@@ -195,14 +279,50 @@ Use the return_from_task tool now.`;
     return agentRegistry;
   }
   
-  private async processToolCalls(toolCalls: any[]): Promise<any[]> {
-    // This would integrate with the actual tool execution system
-    // For now, placeholder
-    return [];
+  private async processToolCalls(toolCalls: ToolCallRequestInfo[]): Promise<any[]> {
+    if (!this.agentRegistry) {
+      throw new Error('Agent registry not initialized');
+    }
+    
+    const results = [];
+    for (const toolCall of toolCalls) {
+      const tool = this.agentRegistry.getTool(toolCall.name);
+      if (!tool) {
+        results.push({
+          error: `Tool ${toolCall.name} not found`,
+          toolCall,
+        });
+        continue;
+      }
+      
+      try {
+        const result = await tool.execute(
+          toolCall.args || {},
+          new AbortController().signal,
+        );
+        results.push({
+          result,
+          toolCall,
+        });
+      } catch (error) {
+        results.push({
+          error: error instanceof Error ? error.message : String(error),
+          toolCall,
+        });
+      }
+    }
+    
+    return results;
   }
   
   private formatToolResults(results: any[]): string {
-    // Format tool results for the next message
-    return 'Tool results received. Continue with your task.';
+    const messages = results.map(r => {
+      if (r.error) {
+        return `Tool ${r.toolCall.name} failed: ${r.error}`;
+      }
+      return `Tool ${r.toolCall.name} completed: ${r.result.returnDisplay || 'Success'}`;
+    });
+    
+    return messages.join('\n') + '\n\nContinue with your task.';
   }
 }

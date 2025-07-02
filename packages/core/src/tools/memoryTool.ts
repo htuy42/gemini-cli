@@ -99,6 +99,7 @@ function ensureNewlineSeparation(currentContent: string): string {
 
 export class MemoryTool extends BaseTool<SaveMemoryParams, ToolResult> {
   static readonly Name: string = memoryToolSchemaData.name;
+  
   constructor() {
     super(
       MemoryTool.Name,

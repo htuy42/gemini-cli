@@ -24,6 +24,9 @@ import {
   ThoughtSummary,
   UnauthorizedError,
   UserPromptEvent,
+  isAgentSpawnRequest,
+  handleAgentSpawn,
+  formatAgentResult,
 } from '@google/gemini-cli-core';
 import { type Part, type PartListUnion } from '@google/genai';
 import {
@@ -622,6 +625,62 @@ export const useGeminiStream = (
 
       if (geminiTools.length === 0) {
         return;
+      }
+
+      // Check if any tool is a request to spawn an agent
+      for (const tool of geminiTools) {
+        if (tool.status === 'success' && tool.request.name === 'task_agent') {
+          const agentRequest = isAgentSpawnRequest(tool.response);
+          if (agentRequest) {
+            // Mark this tool as submitted
+            markToolsAsSubmitted([tool.request.callId]);
+            
+            // Spawn and run the agent
+            try {
+              const currentHistory = geminiClient.getHistory();
+              const agentResult = await handleAgentSpawn(
+                config,
+                geminiClient,
+                agentRequest,
+                currentHistory,
+              );
+              
+              if (agentResult.isAgent && agentResult.result) {
+                // Format and display the agent result
+                const agentResultContent = formatAgentResult(
+                  agentRequest.task,
+                  agentResult.result,
+                );
+                
+                // Add the agent result to the conversation
+                addItem(
+                  {
+                    type: 'gemini',
+                    text: agentResultContent.parts[0].text || '',
+                  },
+                  Date.now(),
+                );
+                
+                // Submit the result as a continuation of the conversation
+                submitQuery(agentResultContent.parts, {
+                  isContinuation: true,
+                });
+              }
+            } catch (error) {
+              // Handle agent execution error
+              addItem(
+                {
+                  type: MessageType.ERROR,
+                  text: `Agent execution failed: ${getErrorMessage(error)}`,
+                },
+                Date.now(),
+              );
+            }
+            
+            // Don't process other tools if we spawned an agent
+            return;
+          }
+        }
       }
 
       // If all the tools were cancelled, don't submit a response to Gemini.
