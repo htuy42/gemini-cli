@@ -247,7 +247,7 @@ export class Config {
 
     const gc = new GeminiClient(this);
     this.geminiClient = gc;
-    this.toolRegistry = await createToolRegistry(this);
+    this.toolRegistry = await createToolRegistry(this, true); // Main agent
     await gc.initialize(contentConfig);
     this.contentGeneratorConfig = contentConfig;
 
@@ -455,7 +455,7 @@ export class Config {
 
 }
 
-export function createToolRegistry(config: Config): Promise<ToolRegistry> {
+export function createToolRegistry(config: Config, isMainAgent: boolean = true): Promise<ToolRegistry> {
   const registry = new ToolRegistry(config);
   const targetDir = config.getTargetDir();
 
@@ -489,20 +489,36 @@ export function createToolRegistry(config: Config): Promise<ToolRegistry> {
     }
   };
 
-  registerCoreTool(LSTool, targetDir, config);
+  // Check if we're in orchestrator-only mode for the main agent
+  const orchestratorOnly = isMainAgent && process.env.GEMINI_ORCHESTRATOR_MODE === 'true';
   
-  // Always use unified file tool
-  registerCoreTool(FileTool, targetDir, config);
+  if (orchestratorOnly) {
+    // Main agent in orchestrator mode - only gets essential tools
+    registerCoreTool(TaskAgentTool, config);
+    registerCoreTool(MemoryTool);
+    registerCoreTool(TaskTool);
+    // Optionally add read-only tools for quick checks
+    if (process.env.GEMINI_ORCHESTRATOR_ALLOW_READ === 'true') {
+      registerCoreTool(LSTool, targetDir, config);
+      registerCoreTool(FileTool, targetDir, config); // FileTool in read mode
+    }
+  } else {
+    // Sub-agents or non-orchestrator mode - get all tools
+    registerCoreTool(LSTool, targetDir, config);
+    registerCoreTool(FileTool, targetDir, config);
+    registerCoreTool(GrepTool, targetDir, config);
+    registerCoreTool(GlobTool, targetDir, config);
+    registerCoreTool(WebFetchTool, config);
+    registerCoreTool(ReadManyFilesTool, targetDir, config);
+    registerCoreTool(ShellTool, config);
+    registerCoreTool(MemoryTool);
+    registerCoreTool(WebSearchTool, config);
+    registerCoreTool(TaskTool);
+    if (isMainAgent) {
+      registerCoreTool(TaskAgentTool, config);
+    }
+  }
   
-  registerCoreTool(GrepTool, targetDir, config);
-  registerCoreTool(GlobTool, targetDir, config);
-  registerCoreTool(WebFetchTool, config);
-  registerCoreTool(ReadManyFilesTool, targetDir, config);
-  registerCoreTool(ShellTool, config);
-  registerCoreTool(MemoryTool);
-  registerCoreTool(WebSearchTool, config);
-  registerCoreTool(TaskTool);
-  registerCoreTool(TaskAgentTool, config);
   return (async () => {
     await registry.discoverTools();
     return registry;

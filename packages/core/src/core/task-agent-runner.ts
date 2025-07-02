@@ -262,18 +262,11 @@ Use the return_from_task tool now.`;
   }
   
   private async createAgentToolRegistry(): Promise<ToolRegistry> {
-    // Create a new registry with all parent tools plus ReturnFromTaskTool
-    const parentRegistry = await this.config.getToolRegistry();
-    const agentRegistry = new ToolRegistry(this.config);
+    // Create a fresh tool registry for the sub-agent
+    const { createToolRegistry } = await import('../config/config.js');
+    const agentRegistry = await createToolRegistry(this.config, false); // false = not main agent
     
-    // Copy all tools from parent except TaskAgentTool (no nested agents)
-    for (const tool of parentRegistry.getAllTools()) {
-      if (tool.name !== 'task_agent') {
-        agentRegistry.registerTool(tool);
-      }
-    }
-    
-    // Add the return tool
+    // Add the return tool that only agents have
     agentRegistry.registerTool(new ReturnFromTaskTool());
     
     return agentRegistry;

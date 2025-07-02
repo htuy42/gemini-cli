@@ -35,7 +35,7 @@ describe('FileTool Integration', () => {
   });
   
   it('should register file tool', async () => {
-    const registry = await createToolRegistry(config);
+    const registry = await createToolRegistry(config, true);
     const fileTool = registry.getTool('file');
     
     expect(fileTool).toBeDefined();
@@ -47,7 +47,7 @@ describe('FileTool Integration', () => {
     const testFile = path.join(testDir, 'test.txt');
     await fs.writeFile(testFile, 'Hello, world!');
     
-    const registry = await createToolRegistry(config);
+    const registry = await createToolRegistry(config, true);
     const fileTool = registry.getTool('file');
     
     if (!fileTool) {
@@ -68,7 +68,7 @@ describe('FileTool Integration', () => {
   it('should execute write operation', async () => {
     const testFile = path.join(testDir, 'new-file.txt');
     
-    const registry = await createToolRegistry(config);
+    const registry = await createToolRegistry(config, true);
     const fileTool = registry.getTool('file');
     
     if (!fileTool) {
@@ -96,7 +96,7 @@ describe('FileTool Integration', () => {
     const testFile = path.join(testDir, 'edit-test.txt');
     await fs.writeFile(testFile, 'Line 1\nLine 2\nLine 3');
     
-    const registry = await createToolRegistry(config);
+    const registry = await createToolRegistry(config, true);
     const fileTool = registry.getTool('file');
     
     if (!fileTool) {
@@ -122,7 +122,7 @@ describe('FileTool Integration', () => {
   });
   
   it('should enforce security - reject paths outside root', async () => {
-    const registry = await createToolRegistry(config);
+    const registry = await createToolRegistry(config, true);
     const fileTool = registry.getTool('file');
     
     if (!fileTool) {
@@ -146,7 +146,7 @@ describe('FileTool Integration', () => {
     const testFile = path.join(testDir, 'binary.jpg');
     await fs.writeFile(testFile, Buffer.from([0xFF, 0xD8, 0xFF, 0xE0])); // JPEG header
     
-    const registry = await createToolRegistry(config);
+    const registry = await createToolRegistry(config, true);
     const fileTool = registry.getTool('file');
     
     if (!fileTool) {

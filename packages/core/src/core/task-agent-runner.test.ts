@@ -39,6 +39,9 @@ describe('TaskAgentRunner', () => {
     config = {
       getToolRegistry: vi.fn(() => Promise.resolve(parentRegistry)),
       getUserMemory: vi.fn(() => 'User memory content'),
+      getTargetDir: vi.fn(() => '/test/dir'),
+      getCoreTools: vi.fn(() => undefined),
+      getExcludeTools: vi.fn(() => undefined),
     } as any;
     
     contentGenerator = {} as any;
