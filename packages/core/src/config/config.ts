@@ -17,6 +17,7 @@ import { GrepTool } from '../tools/grep.js';
 import { GlobTool } from '../tools/glob.js';
 import { ShellTool } from '../tools/shell.js';
 import { FileTool } from '../tools/file-tool/file-tool.js';
+import { RestrictedFileTool } from '../tools/file-tool/restricted-file-tool.js';
 import { WebFetchTool } from '../tools/web-fetch.js';
 import { ReadManyFilesTool } from '../tools/read-many-files.js';
 import {
@@ -489,21 +490,14 @@ export function createToolRegistry(config: Config, isMainAgent: boolean = true):
     }
   };
 
-  // Check if we're in orchestrator-only mode for the main agent
-  const orchestratorOnly = isMainAgent && process.env.GEMINI_ORCHESTRATOR_MODE === 'true';
-  
-  if (orchestratorOnly) {
-    // Main agent in orchestrator mode - only gets essential tools
+  if (isMainAgent) {
+    // Main agent is an orchestrator - only gets minimal tools
     registerCoreTool(TaskAgentTool, config);
-    registerCoreTool(MemoryTool);
     registerCoreTool(TaskTool);
-    // Optionally add read-only tools for quick checks
-    if (process.env.GEMINI_ORCHESTRATOR_ALLOW_READ === 'true') {
-      registerCoreTool(LSTool, targetDir, config);
-      registerCoreTool(FileTool, targetDir, config); // FileTool in read mode
-    }
+    registerCoreTool(LSTool, targetDir, config);
+    registerCoreTool(RestrictedFileTool, targetDir, config); // Read-only file access
   } else {
-    // Sub-agents or non-orchestrator mode - get all tools
+    // Sub-agents get all tools except task_agent
     registerCoreTool(LSTool, targetDir, config);
     registerCoreTool(FileTool, targetDir, config);
     registerCoreTool(GrepTool, targetDir, config);
@@ -514,9 +508,7 @@ export function createToolRegistry(config: Config, isMainAgent: boolean = true):
     registerCoreTool(MemoryTool);
     registerCoreTool(WebSearchTool, config);
     registerCoreTool(TaskTool);
-    if (isMainAgent) {
-      registerCoreTool(TaskAgentTool, config);
-    }
+    // No TaskAgentTool for sub-agents - prevents nesting
   }
   
   return (async () => {

@@ -42,6 +42,9 @@ describe('TaskAgentRunner', () => {
       getTargetDir: vi.fn(() => '/test/dir'),
       getCoreTools: vi.fn(() => undefined),
       getExcludeTools: vi.fn(() => undefined),
+      getFileService: vi.fn(() => ({
+        getGeminiIgnorePatterns: vi.fn(() => []),
+      })),
     } as any;
     
     contentGenerator = {} as any;
@@ -50,6 +53,7 @@ describe('TaskAgentRunner', () => {
       getAllTools: vi.fn(() => []),
       registerTool: vi.fn(),
       getTool: vi.fn(),
+      discoverTools: vi.fn(() => Promise.resolve()),
     };
     
     // Mock ToolRegistry constructor
