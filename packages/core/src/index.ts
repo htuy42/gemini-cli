@@ -59,11 +59,4 @@ export * from './tools/task-tool.js';
 export * from './telemetry/index.js';
 export { sessionId } from './utils/session.js';
 
-// Export agent functionality
-export { 
-  isAgentSpawnRequest, 
-  handleAgentSpawn, 
-  formatAgentResult,
-  type AgentSpawnRequest,
-  type AgentHandlerResult 
-} from './core/agent-handler.js';
+// Note: Agent functionality is now handled directly by TaskAgentTool
